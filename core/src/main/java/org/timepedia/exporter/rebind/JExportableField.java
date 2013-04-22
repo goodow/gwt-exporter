@@ -9,14 +9,13 @@ import org.timepedia.exporter.client.Export;
  */
 public class JExportableField {
 
-  private JExportableClassType enclosingExportType;
+  private final JExportableClassType enclosingExportType;
 
-  private JField field;
+  private final JField field;
 
   private String exportName;
 
-  public JExportableField(JExportableClassType enclosingExportType,
-      JField field) {
+  public JExportableField(JExportableClassType enclosingExportType, JField field) {
     this.enclosingExportType = enclosingExportType;
     this.field = field;
     Export ann = field.getAnnotation(Export.class);
@@ -32,13 +31,11 @@ public class JExportableField {
     return exportName;
   }
 
-  public String getJSQualifiedExportName() {
-    return enclosingExportType.getJSQualifiedExportName() + "."
-        + getJSExportName();
+  public String getJSNIReference() {
+    return field.getEnclosingType().getQualifiedSourceName() + "::" + field.getName();
   }
 
-  public String getJSNIReference() {
-    return field.getEnclosingType().getQualifiedSourceName() + "::" + field
-        .getName();
+  public String getJSQualifiedExportName() {
+    return enclosingExportType.getJSQualifiedExportName() + "." + getJSExportName();
   }
 }
