@@ -1,22 +1,22 @@
 package org.timepedia.exporter.rebind;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
+import com.google.gwt.core.ext.typeinfo.JClassType;
+import com.google.gwt.core.ext.typeinfo.JConstructor;
+import com.google.gwt.core.ext.typeinfo.JField;
+import com.google.gwt.core.ext.typeinfo.JMethod;
+import com.google.gwt.core.ext.typeinfo.JType;
 
 import org.timepedia.exporter.client.Export;
 import org.timepedia.exporter.client.ExportPackage;
 import org.timepedia.exporter.client.ExporterUtil;
 import org.timepedia.exporter.client.SType;
 
-import com.google.gwt.core.ext.typeinfo.JClassType;
-import com.google.gwt.core.ext.typeinfo.JConstructor;
-import com.google.gwt.core.ext.typeinfo.JField;
-import com.google.gwt.core.ext.typeinfo.JMethod;
-import com.google.gwt.core.ext.typeinfo.JType;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 
 /**
  *
@@ -25,17 +25,27 @@ public class JExportableClassType implements JExportable, JExportableType {
 
   private static final String IMPL_EXTENSION = "ExporterImpl";
 
-  private ExportableTypeOracle exportableTypeOracle;
+  private final ExportableTypeOracle exportableTypeOracle;
 
-  private JClassType type;
+  private final JClassType type;
 
-  public JExportableClassType(ExportableTypeOracle exportableTypeOracle,
-      JClassType type) {
+  private JExportableMethod[] exportableMethods;
+
+  private JExportableMethod jsInitMethod;
+
+  private JExportableMethod afterCreateMethod;
+
+  String exportName;
+
+  String exportPackage;
+
+  public JExportableClassType(ExportableTypeOracle exportableTypeOracle, JClassType type) {
     this.exportableTypeOracle = exportableTypeOracle;
 
     this.type = type;
   }
 
+  @Override
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -47,6 +57,10 @@ public class JExportableClassType implements JExportable, JExportableType {
     JExportableClassType that = (JExportableClassType) o;
 
     return getQualifiedSourceName().equals(that.getQualifiedSourceName());
+  }
+
+  public JExportableMethod getAfterCreateMethod() {
+    return afterCreateMethod;
   }
 
   public String[] getEnclosingClasses() {
@@ -67,21 +81,20 @@ public class JExportableClassType implements JExportable, JExportableType {
     }
     return exportableCons.toArray(new JExportableConstructor[0]);
   }
-  
+
   public JExportableMethod[] getExportableFactoryMethods() {
-   ArrayList<JExportableMethod> exportableMethods = new ArrayList<JExportableMethod>();
-   JType retClass = getTypeToExport();
-   for (JMethod method : type.getMethods()) {
-     if (exportableTypeOracle.isExportableFactoryMethod(method, retClass)) {
-       exportableMethods.add(new JExportableMethod(this, method));
-     }
-   }
-   return exportableMethods.toArray(new JExportableMethod[0]);
+    ArrayList<JExportableMethod> exportableMethods = new ArrayList<JExportableMethod>();
+    JType retClass = getTypeToExport();
+    for (JMethod method : type.getMethods()) {
+      if (exportableTypeOracle.isExportableFactoryMethod(method, retClass)) {
+        exportableMethods.add(new JExportableMethod(this, method));
+      }
+    }
+    return exportableMethods.toArray(new JExportableMethod[0]);
   }
-  
+
   public JExportableField[] getExportableFields() {
-    ArrayList<JExportableField> exportableFields
-        = new ArrayList<JExportableField>();
+    ArrayList<JExportableField> exportableFields = new ArrayList<JExportableField>();
 
     for (JField field : type.getFields()) {
       if (exportableTypeOracle.isExportable(field)) {
@@ -91,11 +104,6 @@ public class JExportableClassType implements JExportable, JExportableType {
     return exportableFields.toArray(new JExportableField[0]);
   }
 
-  private JExportableMethod[] exportableMethods;
-  
-  private JExportableMethod jsInitMethod;
-  private JExportableMethod afterCreateMethod;
-  
   public JExportableMethod[] getExportableMethods() {
     if (exportableMethods == null) {
       ArrayList<JExportableMethod> ret = new ArrayList<JExportableMethod>();
@@ -105,13 +113,18 @@ public class JExportableClassType implements JExportable, JExportableType {
       classMethods.addAll(Arrays.asList(type.getMethods()));
       classMethods.addAll(Arrays.asList(type.getInheritableMethods()));
       List<JMethod> sortedList = new ArrayList<JMethod>(classMethods);
-      
+
       // We sort methods so as the user can modify the order they are exported via
       // the export annotation. It is useful when we want export methods whose namespace
       // depends on previous methods, ie:
       // @Export("$wnd.$") method1()
       // @Export("$wnd.$.method") method2()
       Collections.sort(sortedList, new Comparator<JMethod>() {
+        @Override
+        public int compare(JMethod o1, JMethod o2) {
+          return exportableMethodname(o1).compareTo(exportableMethodname(o2));
+        }
+
         String exportableMethodname(JMethod m) {
           String ret = m.getName();
           Export e = m.getAnnotation(Export.class);
@@ -120,21 +133,17 @@ public class JExportableClassType implements JExportable, JExportableType {
           }
           return ret;
         }
-        public int compare(JMethod o1, JMethod o2) {
-          return exportableMethodname(o1).compareTo(exportableMethodname(o2));
-        }
       });
-      
+
       for (JMethod method : sortedList) {
         if (exportableTypeOracle.isConstructor(method, this)) {
           continue;
         }
-        
+
         if (exportableTypeOracle.isExportable(method, this)) {
           JExportableMethod m = new JExportableMethod(this, method);
-          if (m.isExportJsInitMethod() 
-              && exportableTypeOracle.isJavaScriptObject(method.getReturnType())
-              ) {
+          if (m.isExportJsInitMethod()
+              && exportableTypeOracle.isJavaScriptObject(method.getReturnType())) {
             jsInitMethod = m;
           }
           if (m.isExportAfterCreateMethod()) {
@@ -148,14 +157,6 @@ public class JExportableClassType implements JExportable, JExportableType {
     }
     return exportableMethods;
   }
-  
-  public JExportableMethod getJsInitMethod() {
-    return jsInitMethod;
-  }
-  
-  public JExportableMethod getAfterCreateMethod() {
-    return afterCreateMethod;
-  }
 
   public ExportableTypeOracle getExportableTypeOracle() {
     return exportableTypeOracle;
@@ -165,12 +166,9 @@ public class JExportableClassType implements JExportable, JExportableType {
     return type.getSimpleSourceName() + IMPL_EXTENSION;
   }
 
+  @Override
   public String getHostedModeJsTypeCast() {
     return null;
-  }
-
-  public String getJsTypeOf() {
-    return exportableTypeOracle.getJsTypeOf(getType());
   }
 
   public String getJSConstructor() {
@@ -180,41 +178,38 @@ public class JExportableClassType implements JExportable, JExportableType {
     }
     return pkg + getJSExportName();
   }
-  
-  String exportName;
-  public String getJSExportName () {
+
+  public String getJSExportName() {
     if (exportName == null) {
       // By default we use the name of the class.
       exportName = getTypeToExport().getName();
-      
+
       Export expAnnotation = type.getAnnotation(Export.class);
       if (expAnnotation != null && !expAnnotation.value().trim().isEmpty()) {
         // use the annotation value
         exportName = expAnnotation.value().trim();
       } else if (type.getEnclosingType() != null) {
         // Check if the class is defined inside another exported type
-        JExportableClassType encType = exportableTypeOracle
-            .findExportableClassType(
-                type.getEnclosingType().getQualifiedSourceName());
-        
+        JExportableClassType encType =
+            exportableTypeOracle.findExportableClassType(type.getEnclosingType()
+                .getQualifiedSourceName());
+
         // Check if the class has a pkgAnnotation
         ExportPackage pkgAnnotation = type.getAnnotation(ExportPackage.class);
-        
+
         // Remove the enclosing part from the class name
         if (encType != null || pkgAnnotation != null) {
-          exportName  = exportName.replaceFirst("^.+\\.", "");
+          exportName = exportName.replaceFirst("^.+\\.", "");
         }
 
-        
       }
     }
     return exportName;
   }
 
-  String exportPackage;
   public String getJSExportPackage() {
     if (exportPackage == null) {
-      // By default we use the java namespace, but removing the 'client' part 
+      // By default we use the java namespace, but removing the 'client' part
       exportPackage = getPrefix();
       // Check for the @ExportPackage annotation
       ExportPackage ann = type.getAnnotation(ExportPackage.class);
@@ -223,23 +218,47 @@ public class JExportableClassType implements JExportable, JExportableType {
         exportPackage = ann.value().trim();
       } else if (type.getEnclosingType() != null) {
         // Check if the class is defined inside another exported type to use it's name as base
-        JExportableClassType encType = exportableTypeOracle
-            .findExportableClassType(
-                type.getEnclosingType().getQualifiedSourceName());
+        JExportableClassType encType =
+            exportableTypeOracle.findExportableClassType(type.getEnclosingType()
+                .getQualifiedSourceName());
         if (encType != null) {
-          exportPackage =  encType.getJSQualifiedExportName();
+          exportPackage = encType.getJSQualifiedExportName();
         }
       }
     }
     return exportPackage;
   }
 
+  public JExportableMethod getJsInitMethod() {
+    return jsInitMethod;
+  }
+
+  @Override
   public String getJSNIReference() {
     return type.getJNISignature();
   }
 
+  public String getJsniSigForArrays() {
+    if (exportableTypeOracle.isJavaScriptObject(this)) {
+      return "[Lcom/google/gwt/core/client/JavaScriptObject;";
+    } else if (isTransparentType()) {
+      return "[" + type.getJNISignature();
+    } else if (exportableTypeOracle.isExportOverlay(type)) {
+      // Fixes issue #35
+      return "[Ljava/lang/Object;";
+    } else {
+      return "[Lorg/timepedia/exporter/client/Exportable;";
+    }
+  }
+
+  @Override
   public String getJSQualifiedExportName() {
     return getJSConstructor();
+  }
+
+  @Override
+  public String getJsTypeOf() {
+    return exportableTypeOracle.getJsTypeOf(getType());
   }
 
   public String getPackageName() {
@@ -265,21 +284,23 @@ public class JExportableClassType implements JExportable, JExportableType {
     return getPackageName() + "." + getExporterImplementationName();
   }
 
+  @Override
   public String getQualifiedSourceName() {
     return getType().getQualifiedSourceName();
+  }
+
+  public JClassType getRequestedType() {
+    return type;
   }
 
   public JStructuralTypeField[] getStructuralTypeFields() {
     if (!isStructuralType()) {
       return new JStructuralTypeField[0];
     } else {
-      ArrayList<JStructuralTypeField> fields
-          = new ArrayList<JStructuralTypeField>();
+      ArrayList<JStructuralTypeField> fields = new ArrayList<JStructuralTypeField>();
       for (JMethod method : type.getMethods()) {
-        if (method.getName().startsWith("set")
-            && Character.isUpperCase(method.getName().charAt(3))
-            && method.getParameters().length == 1
-            || method.getAnnotation(SType.class) != null) {
+        if (method.getName().startsWith("set") && Character.isUpperCase(method.getName().charAt(3))
+            && method.getParameters().length == 1 || method.getAnnotation(SType.class) != null) {
           fields.add(new JStructuralTypeField(this, method));
         }
       }
@@ -291,25 +312,26 @@ public class JExportableClassType implements JExportable, JExportableType {
     return type;
   }
 
-  public JClassType getRequestedType() {
-    return type;
-  }
-
   public JClassType getTypeToExport() {
-    return exportableTypeOracle.isExportOverlay(type)
-        ? exportableTypeOracle.getExportOverlayType(type) : type;
+    return exportableTypeOracle.isExportOverlay(type) ? exportableTypeOracle
+        .getExportOverlayType(type) : type;
   }
 
+  @Override
   public String getWrapperFunc() {
     if (!needsExport()) {
       return null;
     }
-    return "@" + ExporterUtil.class.getName()
-          + "::wrap(Ljava/lang/Object;)";
+    return "@" + ExporterUtil.class.getName() + "::wrap(Ljava/lang/Object;)";
   }
 
+  @Override
   public int hashCode() {
     return getQualifiedSourceName().hashCode();
+  }
+
+  public boolean isInstantiable() {
+    return exportableTypeOracle.isInstantiable(type);
   }
 
   public boolean isPrimitive() {
@@ -321,31 +343,13 @@ public class JExportableClassType implements JExportable, JExportableType {
   }
 
   public boolean isTransparentType() {
-    return exportableTypeOracle.isJavaScriptObject(this)
-        || exportableTypeOracle.isString(this) 
-        || exportableTypeOracle.isDate(this) 
-        || exportableTypeOracle.isArray(this);
-  }
-  
-  public String getJsniSigForArrays() {
-    if (exportableTypeOracle.isJavaScriptObject(this)) {
-      return "[Lcom/google/gwt/core/client/JavaScriptObject;";
-    } else if (isTransparentType()){
-      return "[" + type.getJNISignature();
-    } else  if (exportableTypeOracle.isExportOverlay(type)) {
-      // Fixes issue #35
-      return "[Ljava/lang/Object;";
-    } else {
-      return "[Lorg/timepedia/exporter/client/Exportable;";
-    }
+    return exportableTypeOracle.isJavaScriptObject(this) || exportableTypeOracle.isString(this)
+        || exportableTypeOracle.isDate(this) || exportableTypeOracle.isArray(this);
   }
 
+  @Override
   public boolean needsExport() {
     return !isPrimitive() && !isTransparentType();
   }
 
-  public boolean isInstantiable() {
-    return exportableTypeOracle.isInstantiable(type);                
-  }
-  
 }
