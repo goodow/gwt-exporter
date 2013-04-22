@@ -96,9 +96,11 @@ public class JExportableClassType implements JExportable, JExportableType {
   public JExportableField[] getExportableFields() {
     ArrayList<JExportableField> exportableFields = new ArrayList<JExportableField>();
 
-    for (JField field : type.getFields()) {
-      if (exportableTypeOracle.isExportable(field)) {
-        exportableFields.add(new JExportableField(this, field));
+    for (JClassType t : type.getFlattenedSupertypeHierarchy()) {
+      for (JField field : t.getFields()) {
+        if (exportableTypeOracle.isExportable(field)) {
+          exportableFields.add(new JExportableField(this, field));
+        }
       }
     }
     return exportableFields.toArray(new JExportableField[0]);
