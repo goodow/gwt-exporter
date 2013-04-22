@@ -293,8 +293,7 @@ public class ExportableTypeOracle {
   }
 
   public boolean isExportable(JField field) {
-    return field.isStatic()
-        && field.isPublic()
+    return field.isPublic()
         && field.isFinal()
         && (isExportable(field.getAnnotation(Export.class)) || (isExportable(field
             .getEnclosingType()) && !isNotExportable(field.getAnnotation(NoExport.class))));

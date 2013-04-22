@@ -155,7 +155,7 @@ public class ClassExporter {
       // export Javascript constructors
       exportConstructor(requestedType);
 
-      // export all static fields
+      // export all public final fields
       exportFields(requestedType);
 
       // export all exportable methods
@@ -739,8 +739,18 @@ public class ClassExporter {
    */
   private void exportFields(JExportableClassType requestedType) throws UnableToCompleteException {
     for (JExportableField field : requestedType.getExportableFields()) {
-      sw.print("$wnd." + field.getJSQualifiedExportName() + " = ");
-      sw.println("@" + field.getJSNIReference() + ";");
+      if (field.field.isStatic()) {
+        sw.print("$wnd." + field.getJSQualifiedExportName() + " = ");
+        sw.println("@" + field.getJSNIReference() + ";");
+      } else {
+        sw.print("Object.defineProperty(_, '");
+        sw.print(field.getJSExportName());
+        sw.print("', {");
+        sw.print("get: function() { return this." + GWT_INSTANCE + ".");
+        sw.print("@" + field.getJSNIReference() + ";");
+        sw.print("}");
+        sw.println("});");
+      }
     }
   }
 

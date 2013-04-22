@@ -11,7 +11,7 @@ public class JExportableField {
 
   private final JExportableClassType enclosingExportType;
 
-  private final JField field;
+  final JField field;
 
   private String exportName;
 
