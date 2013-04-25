@@ -746,9 +746,18 @@ public class ClassExporter {
         sw.print("Object.defineProperty(_, '");
         sw.print(field.getJSExportName());
         sw.print("', {");
-        sw.print("get: function() { return this." + GWT_INSTANCE + ".");
-        sw.print("@" + field.getJSNIReference() + ";");
-        sw.print("}");
+        sw.print("get: function() { return ");
+
+        JExportableType eType = field.type;
+        boolean needExport = eType != null && eType.needsExport();
+        if (needExport) {
+          sw.print(getGwtToJsWrapper(eType) + "(");
+        }
+        sw.print("this." + GWT_INSTANCE + ".@" + field.getJSNIReference());
+        if (needExport) {
+          sw.print(")");
+        }
+        sw.print(";}");
         sw.println("});");
       }
     }

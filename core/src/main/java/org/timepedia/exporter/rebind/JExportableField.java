@@ -12,6 +12,7 @@ public class JExportableField {
   private final JExportableClassType enclosingExportType;
 
   final JField field;
+  final JExportableType type;
 
   private String exportName;
 
@@ -25,6 +26,9 @@ public class JExportableField {
     } else {
       exportName = field.getName();
     }
+    type =
+        enclosingExportType.getExportableTypeOracle().findExportableType(
+            field.getType().getQualifiedSourceName());
   }
 
   public String getJSExportName() {
