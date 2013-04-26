@@ -739,21 +739,35 @@ public class ClassExporter {
    */
   private void exportFields(JExportableClassType requestedType) throws UnableToCompleteException {
     for (JExportableField field : requestedType.getExportableFields()) {
+      JExportableType eType = field.type;
+      boolean isEnum = field.field.getType().isEnum() != null;
+      boolean needExport = eType != null && eType.needsExport() && !isEnum;
       if (field.field.isStatic()) {
         sw.print("$wnd." + field.getJSQualifiedExportName() + " = ");
-        sw.println("@" + field.getJSNIReference() + ";");
+        if (needExport) {
+          sw.print(getGwtToJsWrapper(eType) + "(");
+        }
+        if (isEnum) {
+          sw.print("'" + field.field.getName().toLowerCase() + "'");
+        } else {
+          sw.print("@" + field.getJSNIReference());
+        }
+        if (needExport) {
+          sw.print(")");
+        }
+        sw.print(";");
       } else {
         sw.print("Object.defineProperty(_, '");
         sw.print(field.getJSExportName());
         sw.print("', {");
         sw.print("get: function() { return ");
-
-        JExportableType eType = field.type;
-        boolean needExport = eType != null && eType.needsExport();
         if (needExport) {
           sw.print(getGwtToJsWrapper(eType) + "(");
         }
         sw.print("this." + GWT_INSTANCE + ".@" + field.getJSNIReference());
+        if (isEnum) {
+          sw.print(".@java.lang.Enum::name()().@java.lang.String::toLowerCase()()");
+        }
         if (needExport) {
           sw.print(")");
         }

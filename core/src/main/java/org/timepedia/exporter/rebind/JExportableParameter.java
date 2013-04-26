@@ -1,5 +1,6 @@
 package org.timepedia.exporter.rebind;
 
+import com.google.gwt.core.ext.typeinfo.JEnumType;
 import com.google.gwt.core.ext.typeinfo.JParameter;
 import com.google.gwt.core.ext.typeinfo.JPrimitiveType;
 
@@ -40,7 +41,11 @@ public class JExportableParameter {
   }
 
   public String getExportParameterValue(String argName) {
-
+    JEnumType enumType = param.getType().isEnum();
+    if (enumType != null) {
+      return "@" + enumType.getQualifiedSourceName() + "::valueOf(Ljava/lang/String;)(" + argName
+          + ".@java.lang.String::toUpperCase()())";
+    }
     String paramTypeName = param.getType().getQualifiedSourceName();
     JExportableType type = xTypeOracle.findExportableType(paramTypeName);
 
