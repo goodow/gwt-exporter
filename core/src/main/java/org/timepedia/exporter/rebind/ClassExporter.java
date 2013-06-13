@@ -738,11 +738,15 @@ public class ClassExporter {
    * = JSNI Reference to Foo
    */
   private void exportFields(JExportableClassType requestedType) throws UnableToCompleteException {
+    int i = 0;
     for (JExportableField field : requestedType.getExportableFields()) {
       JExportableType eType = field.type;
       boolean isEnum = field.field.getType().isEnum() != null;
       boolean needExport = eType != null && eType.needsExport() && !isEnum;
-      if (field.field.isStatic()) {
+      if (!field.field.isStatic()) {
+        break;
+      } else {
+        i++;
         sw.print("$wnd." + field.getJSQualifiedExportName() + " = ");
         if (needExport) {
           sw.print(getGwtToJsWrapper(eType) + "(");
@@ -756,25 +760,52 @@ public class ClassExporter {
           sw.print(")");
         }
         sw.print(";");
-      } else {
-        sw.print("Object.defineProperty(_, '");
-        sw.print(field.getJSExportName());
-        sw.print("', {");
-        sw.print("get: function() { return ");
-        if (needExport) {
-          sw.print(getGwtToJsWrapper(eType) + "(");
-        }
-        sw.print("this." + GWT_INSTANCE + ".@" + field.getJSNIReference());
-        if (isEnum) {
-          sw.print(".@java.lang.Enum::name()().@java.lang.String::toLowerCase()()");
-        }
-        if (needExport) {
-          sw.print(")");
-        }
-        sw.print(";}");
-        sw.println("});");
       }
     }
+    JExportableField[] exportableFields = requestedType.getExportableFields();
+    if(i == exportableFields.length) {
+      List<String> names = Arrays.asList("com.goodow.realtime.CollaborativeList", "com.goodow.realtime.CollaborativeMap",
+          "com.goodow.realtime.CollaborativeString", "com.goodow.realtime.IndexReference",
+          "com.goodow.realtime.Model");
+      if(names.contains(requestedType.getQualifiedSourceName())){
+        hackForIe8(requestedType);
+      }
+      return;
+    }
+    hackForIe8(requestedType);
+    sw.print("Object.defineProperties(_, {");
+    boolean isFirst = true;
+    for (; i < exportableFields.length; i++) {
+      JExportableField field = exportableFields[i];
+      JExportableType eType = field.type;
+      boolean isEnum = field.field.getType().isEnum() != null;
+      boolean needExport = eType != null && eType.needsExport() && !isEnum;
+      assert !field.field.isStatic();
+      if(!isFirst){
+        sw.println(",");
+      }
+      isFirst = false;
+      sw.print(field.getJSExportName());
+      sw.print(": {");
+      sw.print("get: function() { return ");
+      if (needExport) {
+        sw.print(getGwtToJsWrapper(eType) + "(");
+      }
+      sw.print("this." + GWT_INSTANCE + ".@" + field.getJSNIReference());
+      if (isEnum) {
+        sw.print(".@java.lang.Enum::name()().@java.lang.String::toLowerCase()()");
+      }
+      if (needExport) {
+        sw.print(")");
+      }
+      sw.print(";}}");
+    }
+    sw.println("});");
+  }
+
+  private void hackForIe8(JExportableClassType requestedType) {
+    sw.println("if ($wnd.navigator.userAgent.toLowerCase().indexOf(' msie 8.') != -1) {");
+    sw.print("_ = $wnd." + requestedType.getJSQualifiedExportName() + ".prototype = $wnd.document.createElement('fake');}");
   }
 
   /**

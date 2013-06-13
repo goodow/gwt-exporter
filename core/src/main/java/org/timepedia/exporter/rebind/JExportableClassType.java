@@ -99,7 +99,11 @@ public class JExportableClassType implements JExportable, JExportableType {
     for (JClassType t : type.getFlattenedSupertypeHierarchy()) {
       for (JField field : t.getFields()) {
         if (exportableTypeOracle.isExportable(field)) {
-          exportableFields.add(new JExportableField(this, field));
+          if (field.isStatic()) {
+            exportableFields.add(0, new JExportableField(this, field));
+          } else {
+            exportableFields.add(new JExportableField(this, field));
+          }
         }
       }
     }
